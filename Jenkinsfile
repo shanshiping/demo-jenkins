@@ -14,7 +14,9 @@ pipeline {
     stages {
         stage('Setup Node.js') {
             steps {
-                // Node.js 由 Jenkins tools 提供，无需 apt-get（agent 通常无 root 权限）
+                // Node.js (Jenkins tool) 依赖 libatomic.so.1，需安装 libatomic1
+                // 若 agent 无 sudo 权限，请在主机或 agent 镜像中预先安装: apt-get install -y libatomic1
+                sh 'sudo apt-get update -qq && sudo apt-get install -y libatomic1'
                 sh 'node -v && npm -v'
             }
         }

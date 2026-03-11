@@ -1,6 +1,12 @@
 pipeline {
     agent any
 
+    tools {
+        // 使用 Jenkins 内置的 Node.js（需在 Jenkins 全局工具中配置名为 NodeJS-20 的 Node 20）
+        // 若没有 NodeJS 插件，可改回 agent 并安装 Node 20，或确保 agent 上已安装 Docker
+        nodejs 'NodeJS-20'
+    }
+
     environment {
         APP_NAME   = 'demo-frontend'
         IMAGE_NAME = 'demo-frontend'
@@ -19,21 +25,21 @@ pipeline {
         stage('Install') {
             steps {
                 echo '📦 安装依赖...'
-                sh "docker run --rm -v ${WORKSPACE}:/app -w /app ${NODE_IMAGE} npm install"
+                sh 'npm install'
             }
         }
 
         stage('Lint') {
             steps {
                 echo '🔍 代码检查...'
-                sh "docker run --rm -v ${WORKSPACE}:/app -w /app ${NODE_IMAGE} npm run lint || true"
+                sh 'npm run lint || true'
             }
         }
 
         stage('Build') {
             steps {
                 echo '🔨 构建 Next.js...'
-                sh "docker run --rm -v ${WORKSPACE}:/app -w /app ${NODE_IMAGE} npm run build"
+                sh 'npm run build'
             }
         }
 

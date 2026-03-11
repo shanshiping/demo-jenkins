@@ -1,6 +1,10 @@
 pipeline {
     agent any
 
+    tools {
+        nodejs 'NodeJS-20'   // Jenkins -> Global Tool Configuration 中配置
+    }
+
     environment {
         APP_NAME   = 'demo-frontend'
         DEPLOY_DIR = '/opt/apps/demo-frontend'
@@ -8,109 +12,79 @@ pipeline {
     }
 
     stages {
+        stage('Setup Node.js') {
+            steps {
+                // Node.js is provided by Jenkins tools configuration
+                // No manual installation needed
+            }
+        }
+
         stage('Checkout') {
             steps {
-                echo 'Fetching source code...'
+                echo '📥 拉取代码...'
                 checkout scm
             }
         }
 
-        stage('Setup Node.js') {
+        stage('Install') {
             steps {
-                sh '''
-                    # Install Node.js 24 using nvm
-                    if ! command -v curl &> /dev/null; then
-                        echo "ERROR: curl not found. Required for nvm installation."
-                        exit 1
-                    fi
-                    
-                    export NVM_DIR="$HOME/.nvm"
-                    mkdir -p $NVM_DIR
-                    curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
-                    
-                    [ -s "$NVM_DIR/nvm.sh" ] && \n                    . "$NVM_DIR/nvm.sh"
-                    
-                    nvm install 24
-                    nvm use 24
-                    echo "✅ Node.js $(node -v) and npm $(npm -v) installed"
-                '''
-            }
-        }
-
-        stage('Install Dependencies') {
-            steps {
-                echo 'Installing dependencies...'
+                echo '📦 安装依赖...'
                 sh 'npm ci'
             }
         }
 
-        stage('Lint Code') {
+        stage('Lint') {
             steps {
-                echo 'Running code linting...'
-                sh 'npm run lint || true'
+                echo '🔍 代码检查...'
+                sh 'npm run lint || true'  // 不阻断构建
             }
         }
 
-        stage('Build Application') {
+        stage('Build') {
             steps {
-                echo 'Building Next.js application...'
+                echo '🔨 构建 Next.js...'
                 sh 'npm run build'
             }
         }
 
-        stage('Verify Environment') {
+        stage('Deploy') {
             steps {
-                echo '🔍 Verifying required tools...'
-                sh '''
-                    echo "Node: $(node -v)"
-                    echo "npm: $(npm -v)"
-                    if command -v docker &> /dev/null; then
-                        echo "Docker: $(docker --version)"
-                    else
-                        echo "ERROR: Docker not found in PATH!"
-                        exit 1
-                    fi
-                '''
-            }
-        }
-
-        stage('Build Docker Image') {
-            steps {
-                echo '🐳 Building Docker image...'
-                sh 'docker build -t ${APP_NAME}:${BUILD_NUMBER} . || (echo "Failed to build Docker image. Check Docker installation." && exit 1)'
-            }
-        }
-
-        stage('Deploy to Server') {
-            steps {
-                echo 'Deploying application...'
+                echo '🚀 部署...'
                 sh """
-                    docker stop ${APP_NAME} || true
-                    docker rm ${APP_NAME} || true
-                    docker run -d \\
-                        -p ${APP_PORT}:3000 \\
-                        --name ${APP_NAME} \\
-                        ${APP_NAME}:${BUILD_NUMBER}
-                    echo "Application started on port ${APP_PORT}"
+                    # 停止旧进程
+                    PID=\$(pgrep -f "node.*${APP_NAME}" || true)
+                    if [ -n "\$PID" ]; then
+                        kill \$PID && sleep 3
+                    fi
+
+                    # 同步文件
+                    rsync -a --delete .next ${DEPLOY_DIR}/
+                    rsync -a --delete public ${DEPLOY_DIR}/
+                    cp package.json next.config.js ${DEPLOY_DIR}/
+                    cd ${DEPLOY_DIR} && npm ci --omit=dev
+
+                    # 启动
+                    nohup npm start -- --port ${APP_PORT} \
+                        > ${DEPLOY_DIR}/frontend.log 2>&1 &
+                    echo "Frontend started on port ${APP_PORT}"
                 """
             }
         }
 
         stage('Health Check') {
             steps {
-                echo 'Performing health check...'
                 sh 'sleep 8'
-                sh "curl -sf http://localhost:${APP_PORT} -o /dev/null && echo 'Application is healthy'"
+                sh "curl -sf http://localhost:${APP_PORT} -o /dev/null && echo '✅ Frontend is up'"
             }
         }
     }
 
     post {
         success {
-            echo "Deployment successful! Access the application at: http://localhost:${APP_PORT}"
+            echo "✅ 前端部署成功！访问: http://localhost:${APP_PORT}"
         }
         failure {
-            echo 'Deployment failed'
+            echo '❌ 前端部署失败'
         }
     }
 }

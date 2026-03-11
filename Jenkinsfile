@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     tools {
-        nodejs 'NodeJS-20'   // Jenkins -> Global Tool Configuration 中配置
+        nodejs 'nodejs-20'   // Standardized tool name
     }
 
     environment {
@@ -14,70 +14,73 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                echo '📥 拉取代码...'
+                echo '📥 Fetching source code...'
                 checkout scm
             }
         }
 
-        stage('Install') {
+        stage('Install Dependencies') {
             steps {
-                echo '📦 安装依赖...'
+                echo '📦 Installing dependencies...'
                 sh 'npm ci'
             }
         }
 
-        stage('Lint') {
+        stage('Lint Code') {
             steps {
-                echo '🔍 代码检查...'
-                sh 'npm run lint || true'  // 不阻断构建
+                echo '🔍 Running code linting...'
+                sh 'npm run lint || true'  // Non-blocking check
             }
         }
 
-        stage('Build') {
+        stage('Build Application') {
             steps {
-                echo '🔨 构建 Next.js...'
+                echo '🔨 Building Next.js application...'
                 sh 'npm run build'
             }
         }
 
-        stage('Deploy') {
+        stage('Build Docker Image') {
             steps {
-                echo '🚀 部署...'
+                echo '🐳 Building Docker image...'
+                sh 'docker build -t ${APP_NAME}:${BUILD_NUMBER} .'
+            }
+        }
+
+        stage('Deploy to Server') {
+            steps {
+                echo '🚀 Deploying application...'
                 sh """
-                    # 停止旧进程
-                    PID=\$(pgrep -f "node.*${APP_NAME}" || true)
-                    if [ -n "\$PID" ]; then
-                        kill \$PID && sleep 3
-                    fi
+                    # Stop and remove existing container
+                    docker stop ${APP_NAME} || true
+                    docker rm ${APP_NAME} || true
 
-                    # 同步文件
-                    rsync -a --delete .next ${DEPLOY_DIR}/
-                    rsync -a --delete public ${DEPLOY_DIR}/
-                    cp package.json next.config.js ${DEPLOY_DIR}/
-                    cd ${DEPLOY_DIR} && npm ci --omit=dev
+                    # Run new container
+                    docker run -d \\
+                        -p ${APP_PORT}:3000 \\
+                        --name ${APP_NAME} \\
+                        ${APP_NAME}:${BUILD_NUMBER}
 
-                    # 启动
-                    nohup npm start -- --port ${APP_PORT} \
-                        > ${DEPLOY_DIR}/frontend.log 2>&1 &
-                    echo "Frontend started on port ${APP_PORT}"
+                    echo "Application started on port ${APP_PORT}"
                 """
             }
         }
 
         stage('Health Check') {
             steps {
+                echo '🏥 Performing health check...'
                 sh 'sleep 8'
-                sh "curl -sf http://localhost:${APP_PORT} -o /dev/null && echo '✅ Frontend is up'"
+                sh "curl -sf http://localhost:${APP_PORT} -o /dev/null && echo '✅ Application is healthy'"
             }
         }
     }
 
     post {
         success {
-            echo "✅ 前端部署成功！访问: http://localhost:${APP_PORT}"
+            echo "✅ Deployment successful! Access the application at: http://localhost:${APP_PORT}"
         }
         failure {
-            echo '❌ 前端部署失败'
+            echo '❌ Deployment failed'
         }
     }
 }

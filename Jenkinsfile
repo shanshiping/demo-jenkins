@@ -1,18 +1,20 @@
 pipeline {
     agent any
 
+    tools {
+        nodejs 'NodeJS'   // Jenkins 全局工具中配置的 Node.js
+    }
+
     environment {
-        APP_NAME    = 'demo-frontend'
-        IMAGE_NAME  = 'demo-frontend'
-        APP_PORT    = '3000'
-        // 用官方 Node 镜像跑 node/npm，避免 agent 缺 libatomic.so.1
-        NODE_IMAGE  = 'node:20-bookworm'
+        APP_NAME   = 'demo-frontend'
+        IMAGE_NAME = 'demo-frontend'
+        APP_PORT   = '3000'
     }
 
     stages {
         stage('Setup Node.js') {
             steps {
-                sh "docker run --rm ${NODE_IMAGE} node -v && docker run --rm ${NODE_IMAGE} npm -v"
+                sh 'node -v && npm -v'
             }
         }
 
@@ -26,21 +28,21 @@ pipeline {
         stage('Install') {
             steps {
                 echo '📦 安装依赖...'
-                sh "docker run --rm -v ${WORKSPACE}:/app -w /app ${NODE_IMAGE} npm install"
+                sh 'npm install'
             }
         }
 
         stage('Lint') {
             steps {
                 echo '🔍 代码检查...'
-                sh "docker run --rm -v ${WORKSPACE}:/app -w /app ${NODE_IMAGE} npm run lint || true"
+                sh 'npm run lint || true'
             }
         }
 
         stage('Build') {
             steps {
                 echo '🔨 构建 Next.js...'
-                sh "docker run --rm -v ${WORKSPACE}:/app -w /app ${NODE_IMAGE} npm run build"
+                sh 'npm run build'
             }
         }
 

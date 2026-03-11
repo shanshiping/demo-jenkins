@@ -1,23 +1,14 @@
 pipeline {
     agent any
 
-    tools {
-        nodejs 'NodeJS'   // Jenkins 全局工具中配置的 Node.js
-    }
-
     environment {
         APP_NAME   = 'demo-frontend'
         IMAGE_NAME = 'demo-frontend'
         APP_PORT   = '3000'
+        NODE_IMAGE = 'node:20'
     }
 
     stages {
-        stage('Setup Node.js') {
-            steps {
-                sh 'node -v && npm -v'
-            }
-        }
-
         stage('Checkout') {
             steps {
                 echo '📥 拉取代码...'
@@ -28,21 +19,21 @@ pipeline {
         stage('Install') {
             steps {
                 echo '📦 安装依赖...'
-                sh 'npm install'
+                sh "docker run --rm -v ${WORKSPACE}:/app -w /app ${NODE_IMAGE} npm install"
             }
         }
 
         stage('Lint') {
             steps {
                 echo '🔍 代码检查...'
-                sh 'npm run lint || true'
+                sh "docker run --rm -v ${WORKSPACE}:/app -w /app ${NODE_IMAGE} npm run lint || true"
             }
         }
 
         stage('Build') {
             steps {
                 echo '🔨 构建 Next.js...'
-                sh 'npm run build'
+                sh "docker run --rm -v ${WORKSPACE}:/app -w /app ${NODE_IMAGE} npm run build"
             }
         }
 

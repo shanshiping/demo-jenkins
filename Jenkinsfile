@@ -1,130 +1,83 @@
 pipeline {
     agent any
 
-    // 定义工具（需要在 Jenkins 全局工具中配置）
     tools {
-        maven 'Maven-3.9'   // 对应 Jenkins -> Global Tool Configuration 中配置的 Maven 名称
-        jdk 'JDK-17'        // 对应 Jenkins -> Global Tool Configuration 中配置的 JDK 名称
+        nodejs 'NodeJS-20'   // Jenkins -> Global Tool Configuration 中配置
     }
 
-    // 环境变量
     environment {
-        APP_NAME = 'spring-boot-demo'
-        JAR_NAME = 'demo-1.0.0.jar'
-        DEPLOY_DIR = '/opt/apps/demo'      // 服务器上的部署目录
-        SERVER_PORT = '8080'
+        APP_NAME   = 'demo-frontend'
+        DEPLOY_DIR = '/opt/apps/demo-frontend'
+        APP_PORT   = '3000'
     }
 
     stages {
-
-        // ===== 阶段1：拉取代码 =====
         stage('Checkout') {
             steps {
                 echo '📥 拉取代码...'
                 checkout scm
-                // 打印当前分支和提交信息
-                sh 'git log --oneline -5'
             }
         }
 
-        // ===== 阶段2：编译 =====
+        stage('Install') {
+            steps {
+                echo '📦 安装依赖...'
+                sh 'npm ci'
+            }
+        }
+
+        stage('Lint') {
+            steps {
+                echo '🔍 代码检查...'
+                sh 'npm run lint || true'  // 不阻断构建
+            }
+        }
+
         stage('Build') {
             steps {
-                echo '🔨 开始编译...'
-                sh 'mvn clean compile -DskipTests'
+                echo '🔨 构建 Next.js...'
+                sh 'npm run build'
             }
         }
 
-        // ===== 阶段3：单元测试 =====
-        stage('Test') {
-            steps {
-                echo '🧪 运行单元测试...'
-                sh 'mvn test'
-            }
-            post {
-                always {
-                    // 发布测试报告
-                    junit 'target/surefire-reports/*.xml'
-                }
-                failure {
-                    echo '❌ 测试失败，请检查代码！'
-                }
-            }
-        }
-
-        // ===== 阶段4：打包 =====
-        stage('Package') {
-            steps {
-                echo '📦 打包应用...'
-                sh 'mvn package -DskipTests'
-                // 确认 JAR 包生成
-                sh 'ls -lh target/*.jar'
-            }
-        }
-
-        // ===== 阶段5：部署 =====
         stage('Deploy') {
             steps {
-                echo '🚀 开始部署...'
+                echo '🚀 部署...'
                 sh """
-                    # 创建部署目录
-                    mkdir -p ${DEPLOY_DIR}
-
-                    # 复制 JAR 包
-                    cp target/${JAR_NAME} ${DEPLOY_DIR}/
-
-                    # 停止旧进程（如果存在）
-                    PID=\$(pgrep -f "${JAR_NAME}" || true)
+                    # 停止旧进程
+                    PID=\$(pgrep -f "node.*${APP_NAME}" || true)
                     if [ -n "\$PID" ]; then
-                        echo "停止旧进程 PID: \$PID"
-                        kill \$PID
-                        sleep 3
+                        kill \$PID && sleep 3
                     fi
 
-                    # 启动新进程
-                    echo "启动新进程..."
-                    nohup java -jar ${DEPLOY_DIR}/${JAR_NAME} \
-                        --server.port=${SERVER_PORT} \
-                        --spring.profiles.active=prod \
-                        > ${DEPLOY_DIR}/app.log 2>&1 &
+                    # 同步文件
+                    rsync -a --delete .next ${DEPLOY_DIR}/
+                    rsync -a --delete public ${DEPLOY_DIR}/
+                    cp package.json next.config.js ${DEPLOY_DIR}/
+                    cd ${DEPLOY_DIR} && npm ci --omit=dev
 
-                    echo "应用已启动，PID: \$!"
+                    # 启动
+                    nohup npm start -- --port ${APP_PORT} \
+                        > ${DEPLOY_DIR}/frontend.log 2>&1 &
+                    echo "Frontend started on port ${APP_PORT}"
                 """
             }
         }
 
-        // ===== 阶段6：健康检查 =====
         stage('Health Check') {
             steps {
-                echo '🏥 健康检查...'
-                // 等待应用启动
-                sh 'sleep 10'
-                // 调用 Actuator 健康检查接口
-                sh """
-                    curl -f http://localhost:${SERVER_PORT}/actuator/health || \
-                    (echo '❌ 健康检查失败！' && exit 1)
-                """
-                echo '✅ 健康检查通过！'
+                sh 'sleep 8'
+                sh "curl -sf http://localhost:${APP_PORT} -o /dev/null && echo '✅ Frontend is up'"
             }
         }
     }
 
-    // 构建后操作
     post {
         success {
-            echo """
-            ✅ ===== 部署成功 =====
-            应用: ${APP_NAME}
-            访问地址: http://localhost:${SERVER_PORT}/api/hello
-            ========================
-            """
+            echo "✅ 前端部署成功！访问: http://localhost:${APP_PORT}"
         }
         failure {
-            echo '❌ 流水线失败，请检查日志！'
-        }
-        always {
-            // 清理工作空间（可选）
-            echo '🧹 构建完成'
+            echo '❌ 前端部署失败'
         }
     }
 }

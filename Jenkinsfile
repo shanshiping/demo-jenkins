@@ -18,10 +18,21 @@ pipeline {
         stage('Setup Node.js') {
             steps {
                 sh '''
-                    # Install Node.js 24 directly without nvm
-                    curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
-                    sudo apt-get install -y nodejs
-                    echo "Node.js $(node -v) and npm $(npm -v) installed"
+                    # Install Node.js 24 using nvm
+                    if ! command -v curl &> /dev/null; then
+                        echo "ERROR: curl not found. Required for nvm installation."
+                        exit 1
+                    fi
+                    
+                    export NVM_DIR="$HOME/.nvm"
+                    mkdir -p $NVM_DIR
+                    curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+                    
+                    [ -s "$NVM_DIR/nvm.sh" ] && \n                    . "$NVM_DIR/nvm.sh"
+                    
+                    nvm install 24
+                    nvm use 24
+                    echo "✅ Node.js $(node -v) and npm $(npm -v) installed"
                 '''
             }
         }

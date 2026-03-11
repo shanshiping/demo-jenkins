@@ -15,6 +15,20 @@ pipeline {
             }
         }
 
+        stage('Setup Node.js') {
+            steps {
+                sh '''
+                    # Install Node.js 20 using nvm
+                    curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+                    export NVM_DIR="$HOME/.nvm"
+                    [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+                    nvm install 20
+                    nvm use 20
+                    echo "Node.js $(node -v) and npm $(npm -v) installed"
+                '''
+            }
+        }
+
         stage('Install Dependencies') {
             steps {
                 echo 'Installing dependencies...'

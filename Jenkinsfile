@@ -14,8 +14,8 @@ pipeline {
     stages {
         stage('Setup Node.js') {
             steps {
-                // Node.js is provided by Jenkins tools configuration
-                // No manual installation needed
+                // Node.js provided by Jenkins tools configuration
+                sh 'true'  // No-op step to satisfy syntax requirements
             }
         }
 

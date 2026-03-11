@@ -1,6 +1,9 @@
 pipeline {
     agent any
 
+    // 轮询 Git：有 push 时自动构建（不依赖 GitHub Webhook，避免「配了 Webhook 仍不触发」）
+    triggers { pollSCM('H/2 * * * *') }
+
     environment {
         APP_NAME   = 'demo-frontend'
         IMAGE_NAME = 'demo-frontend'

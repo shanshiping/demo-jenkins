@@ -1,10 +1,5 @@
 pipeline {
-    agent {
-        docker {
-            image 'node:24'
-            args '-u root'
-        }
-    }
+    agent any
 
     environment {
         APP_NAME   = 'demo-frontend'
@@ -23,12 +18,9 @@ pipeline {
         stage('Setup Node.js') {
             steps {
                 sh '''
-                    # Install Node.js 20 using nvm
-                    curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
-                    export NVM_DIR="$HOME/.nvm"
-                    [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
-                    nvm install 20
-                    nvm use 20
+                    # Install Node.js 24 directly without nvm
+                    curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
+                    sudo apt-get install -y nodejs
                     echo "Node.js $(node -v) and npm $(npm -v) installed"
                 '''
             }

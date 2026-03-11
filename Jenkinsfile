@@ -1,22 +1,18 @@
 pipeline {
     agent any
 
-    tools {
-        nodejs 'NodeJS'   // Jenkins -> Global Tool Configuration 中配置
-    }
-
     environment {
         APP_NAME    = 'demo-frontend'
         IMAGE_NAME  = 'demo-frontend'
         APP_PORT    = '3000'
+        // 用官方 Node 镜像跑 node/npm，避免 agent 缺 libatomic.so.1
+        NODE_IMAGE  = 'node:20-bookworm'
     }
 
     stages {
         stage('Setup Node.js') {
             steps {
-                // 不在容器内使用 sudo（Jenkins 常用镜像没有 sudo）
-                // 若 node 报错缺少 libatomic1，请改用下方「Docker 构建 agent」或先在 agent 镜像中安装 libatomic1
-                sh 'node -v && npm -v'
+                sh "docker run --rm ${NODE_IMAGE} node -v && docker run --rm ${NODE_IMAGE} npm -v"
             }
         }
 
@@ -30,21 +26,21 @@ pipeline {
         stage('Install') {
             steps {
                 echo '📦 安装依赖...'
-                sh 'npm install'
+                sh "docker run --rm -v ${WORKSPACE}:/app -w /app ${NODE_IMAGE} npm install"
             }
         }
 
         stage('Lint') {
             steps {
                 echo '🔍 代码检查...'
-                sh 'npm run lint || true'  // 不阻断构建
+                sh "docker run --rm -v ${WORKSPACE}:/app -w /app ${NODE_IMAGE} npm run lint || true"
             }
         }
 
         stage('Build') {
             steps {
                 echo '🔨 构建 Next.js...'
-                sh 'npm run build'
+                sh "docker run --rm -v ${WORKSPACE}:/app -w /app ${NODE_IMAGE} npm run build"
             }
         }
 

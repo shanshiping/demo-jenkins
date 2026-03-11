@@ -1,0 +1,10 @@
+# 依赖在镜像内重新安装
+node_modules
+.next
+.git
+*.md
+.env*
+# 避免把本地构建产物打进镜像
+Dockerfile
+.dockerignore
+Jenkinsfile*

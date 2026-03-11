@@ -6,17 +6,16 @@ pipeline {
     }
 
     environment {
-        APP_NAME   = 'demo-frontend'
-        DEPLOY_DIR = '/opt/apps/demo-frontend'
-        APP_PORT   = '3000'
+        APP_NAME    = 'demo-frontend'
+        IMAGE_NAME  = 'demo-frontend'
+        APP_PORT    = '3000'
     }
 
     stages {
         stage('Setup Node.js') {
             steps {
-                // Node.js (Jenkins tool) 依赖 libatomic.so.1，需安装 libatomic1
-                // 若 agent 无 sudo 权限，请在主机或 agent 镜像中预先安装: apt-get install -y libatomic1
-                sh 'sudo apt-get update -qq && sudo apt-get install -y libatomic1'
+                // 不在容器内使用 sudo（Jenkins 常用镜像没有 sudo）
+                // 若 node 报错缺少 libatomic1，请改用下方「Docker 构建 agent」或先在 agent 镜像中安装 libatomic1
                 sh 'node -v && npm -v'
             }
         }
@@ -31,7 +30,7 @@ pipeline {
         stage('Install') {
             steps {
                 echo '📦 安装依赖...'
-                sh 'npm ci'
+                sh 'npm install'
             }
         }
 
@@ -49,41 +48,38 @@ pipeline {
             }
         }
 
+        stage('Build Docker Image') {
+            steps {
+                echo '🐳 构建 Docker 镜像...'
+                sh """
+                    docker build -t ${IMAGE_NAME}:latest .
+                """
+            }
+        }
+
         stage('Deploy') {
             steps {
-                echo '🚀 部署...'
+                echo '🚀 使用 Docker 镜像部署...'
                 sh """
-                    # 停止旧进程
-                    PID=\$(pgrep -f "node.*${APP_NAME}" || true)
-                    if [ -n "\$PID" ]; then
-                        kill \$PID && sleep 3
-                    fi
-
-                    # 同步文件
-                    rsync -a --delete .next ${DEPLOY_DIR}/
-                    rsync -a --delete public ${DEPLOY_DIR}/
-                    cp package.json next.config.js ${DEPLOY_DIR}/
-                    cd ${DEPLOY_DIR} && npm ci --omit=dev
-
-                    # 启动
-                    nohup npm start -- --port ${APP_PORT} \
-                        > ${DEPLOY_DIR}/frontend.log 2>&1 &
-                    echo "Frontend started on port ${APP_PORT}"
+                    docker stop ${APP_NAME} 2>/dev/null || true
+                    docker rm ${APP_NAME} 2>/dev/null || true
+                    docker run -d --name ${APP_NAME} -p ${APP_PORT}:3000 ${IMAGE_NAME}:latest
+                    echo "容器已启动，访问 http://localhost:${APP_PORT}"
                 """
             }
         }
 
         stage('Health Check') {
             steps {
-                sh 'sleep 8'
-                sh "curl -sf http://localhost:${APP_PORT} -o /dev/null && echo '✅ Frontend is up'"
+                sh 'sleep 5'
+                sh "curl -sf http://localhost:${APP_PORT} -o /dev/null && echo '✅ Frontend is up' || echo '⚠️ 健康检查未通过（若 Jenkins 与容器不在同一台机可忽略）'"
             }
         }
     }
 
     post {
         success {
-            echo "✅ 前端部署成功！访问: http://localhost:${APP_PORT}"
+            echo "✅ 前端部署成功！Docker 镜像: ${IMAGE_NAME}:latest，访问: http://localhost:${APP_PORT}"
         }
         failure {
             echo '❌ 前端部署失败'

@@ -1,8 +1,9 @@
 pipeline {
-    agent any
-
-    tools {
-        nodejs 'nodejs-20'   // Standardized tool name
+    agent {
+        docker {
+            image 'node:20'
+            args '-u root'
+        }
     }
 
     environment {
@@ -36,6 +37,7 @@ pipeline {
         stage('Build Application') {
             steps {
                 echo '🔨 Building Next.js application...'
+                sh 'npm ci'
                 sh 'npm run build'
             }
         }

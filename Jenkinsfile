@@ -1,8 +1,9 @@
 pipeline {
-    agent any
-
-    tools {
-        nodejs 'nodejs-24'
+    agent {
+        docker {
+            image 'node:24'
+            args '-u root'
+        }
     }
 
     environment {

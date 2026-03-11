@@ -1,6 +1,10 @@
 pipeline {
     agent any
 
+    tools {
+        nodejs 'nodejs-24'
+    }
+
     environment {
         APP_NAME   = 'demo-frontend'
         DEPLOY_DIR = '/opt/apps/demo-frontend'
@@ -50,10 +54,26 @@ pipeline {
             }
         }
 
+        stage('Verify Environment') {
+            steps {
+                echo '🔍 Verifying required tools...'
+                sh '''
+                    echo "Node: $(node -v)"
+                    echo "npm: $(npm -v)"
+                    if command -v docker &> /dev/null; then
+                        echo "Docker: $(docker --version)"
+                    else
+                        echo "ERROR: Docker not found in PATH!"
+                        exit 1
+                    fi
+                '''
+            }
+        }
+
         stage('Build Docker Image') {
             steps {
-                echo 'Building Docker image...'
-                sh 'docker build -t ${APP_NAME}:${BUILD_NUMBER} .'
+                echo '🐳 Building Docker image...'
+                sh 'docker build -t ${APP_NAME}:${BUILD_NUMBER} . || (echo "Failed to build Docker image. Check Docker installation." && exit 1)'
             }
         }
 

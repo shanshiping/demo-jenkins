@@ -14,7 +14,6 @@ pipeline {
     stages {
         stage('Setup Node.js') {
             steps {
-                // Install required system libraries for Node.js
                 sh 'apt-get update && apt-get install -y libatomic1'
             }
         }

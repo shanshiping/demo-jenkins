@@ -14,8 +14,8 @@ pipeline {
     stages {
         stage('Setup Node.js') {
             steps {
-                // Node.js provided by Jenkins tools configuration
-                sh 'true'  // No-op step to satisfy syntax requirements
+                // Install required system libraries for Node.js
+                sh 'apt-get update && apt-get install -y libatomic1'
             }
         }
 

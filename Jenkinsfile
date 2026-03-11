@@ -1,12 +1,6 @@
 pipeline {
     agent any
 
-    tools {
-        // 使用 Jenkins 内置的 Node.js（需在 Jenkins 全局工具中配置名为 NodeJS-20 的 Node 20）
-        // 若没有 NodeJS 插件，可改回 agent 并安装 Node 20，或确保 agent 上已安装 Docker
-        nodejs 'NodeJS-20'
-    }
-
     environment {
         APP_NAME   = 'demo-frontend'
         IMAGE_NAME = 'demo-frontend'

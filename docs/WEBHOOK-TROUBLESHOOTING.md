@@ -91,3 +91,48 @@
 4. **Multibranch** 只做了扫描，没点到具体分支的 build → 去 Multibranch 任务里看分支列表和最近一次扫描/构建。
 
 按上面顺序查一遍，一般能定位到是 GitHub 没发、发了但 Jenkins 没收到、还是收到了但没勾选「由 GitHub 触发」。
+
+---
+
+## 七、Pipeline 任务：Webhook 200 但仍不触发（已知情况）
+
+**原因**：GitHub Plugin 对 **Pipeline（Pipeline script from SCM）** 任务有时不会把 Webhook 和任务关联——它主要针对带「Git SCM」的 Freestyle 任务。所以即使勾了「GitHub hook trigger for GITScm polling」、也配了 GitHub project，Pipeline 任务仍可能不触发。
+
+### 方案 A：只用轮询（最简单、必生效）
+
+不依赖 Webhook，让 Jenkins 每分钟查一次仓库，有提交就构建。
+
+1. 任务 → **Configure** → **Build Triggers**
+2. 勾选 **Poll SCM**
+3. **日程表** 填：`* * * * *`（每分钟）或 `H/1 * * * *`（每分钟、错开整点）
+4. 保存
+
+Push 后**最多等 1 分钟**，Build History 里就会出现新构建。无需改 GitHub、无需新插件。
+
+### 方案 B：用 Generic Webhook Trigger（Push 后立刻触发）
+
+让 GitHub 的 Webhook 打到「带 token 的通用触发地址」，直接触发这个任务，不依赖 GitHub Plugin 的关联。
+
+**1. 安装插件**
+
+- **Manage Jenkins** → **Plugins** → **Available** → 搜 **Generic Webhook Trigger** → 安装 → 重启
+
+**2. 在任务里加触发器**
+
+- 任务 → **Configure** → **Build Triggers**
+- 勾选 **Generic Webhook Trigger**
+- **Token** 填一个只有你知道的字符串，例如：`demo-jenkins-push`
+- 其余可默认，保存
+
+**3. 改 GitHub Webhook 的 URL**
+
+- GitHub 仓库 → **Settings** → **Webhooks** → 编辑你那条 Webhook（或新增一条）
+- **Payload URL** 改为（把 `你的ngrok地址` 和 token 换成你的）：
+  ```text
+  https://你的ngrok地址/generic-webhook-trigger?token=demo-jenkins-push
+  ```
+- **Content type**：`application/json`
+- **Which events?**：Just the push event
+- 保存
+
+之后每次 push，GitHub 会请求这个 URL，Jenkins 收到后就会触发该任务。若保留 **Poll SCM**（如 `H/2 * * * *`），即使 Webhook 失败也有轮询兜底。
